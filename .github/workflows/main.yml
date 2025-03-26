@@ -1,0 +1,95 @@
+name: Final CI/CD
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Show project structure
+      shell: cmd
+      run: |
+        echo "=== Current Directory ==="
+        cd
+        echo "=== Project Structure ==="
+        dir /S
+
+    - name: Create directories
+      shell: cmd
+      run: |
+        if not exist lib mkdir lib
+        if not exist bin mkdir bin
+        echo "=== Created directories ==="
+        dir
+
+    - name: Download SQLite JDBC
+      shell: cmd
+      run: |
+        curl -L -o "lib\sqlite-jdbc-3.49.1.0.jar" "https://github.com/xerial/sqlite-jdbc/releases/download/3.49.1.0/sqlite-jdbc-3.49.1.0.jar"
+        echo "=== Downloaded SQLite JDBC ==="
+        dir lib
+
+    - name: Compile Java files
+      shell: cmd
+      run: |
+        echo "=== Compiling Java Files ==="
+        dir /S /B src\*.java > sources.txt
+        type sources.txt
+        javac -cp "lib\*" -d bin @sources.txt
+        echo "=== Compilation Complete ==="
+        dir bin
+
+    - name: Create JAR
+      shell: cmd
+      run: |
+        echo "=== Creating JAR ==="
+        cd bin
+        jar cvf ..\MissieMoustass.jar .
+        cd ..
+        echo "=== JAR Created ==="
+        dir MissieMoustass.jar
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MissieMoustass
+        path: MissieMoustass.jar
+        if-no-files-found: error
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.run_number }}
+        release_name: Release v${{ github.run_number }}
+        body: |
+          Release automatique du projet Missié Moustass
+          Build numéro : ${{ github.run_number }}
+        draft: false
+        prerelease: false
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./MissieMoustass.jar
+        asset_name: MissieMoustass.jar
+        asset_content_type: application/java-archive
